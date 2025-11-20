@@ -4,3 +4,4 @@ resources:
   - flux-system
   - apps-vote.yaml
   - apps-result.yaml
+  - ../../addons/ingress-nginx

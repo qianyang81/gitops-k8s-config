@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vote
+  namespace: app-vote
+  labels:
+    app: vote
+spec:
+  selector:
+    app: vote
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

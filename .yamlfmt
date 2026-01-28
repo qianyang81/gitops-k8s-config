@@ -1,0 +1,14 @@
+# Use doublestar globs like **/foo/**
+doublestar: true
+
+# Don't touch these "config files" (not Kubernetes manifests)
+exclude:
+  - "**/kustomization.yaml"
+  - "**/values.yaml"
+
+formatter:
+  type: basic
+  include_document_start: true
+  retain_line_breaks: true
+
+

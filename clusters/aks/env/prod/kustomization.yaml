@@ -1,12 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # 1) shared：shared resources（namespaces/sources）
-  - ../../shared/sources
-  - ../../shared/namespaces
-  # 2) vcluster: environment overlay
-  - ../../vclusters/prod
-  # 3) platform: environment overlay (ingress/cert-manager/monitoring)
+  # platform: environment overlay (ingress/cert-manager/monitoring)
   #- ../../../../platform/overlays/prod
-  # 4) apps：environment overlay
-  #- ../../../../apps/overlays/prod
+  # apps：environment overlay
+  - ../../../../apps/overlays/prod

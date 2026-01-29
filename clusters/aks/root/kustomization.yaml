@@ -3,6 +3,11 @@ kind: Kustomization
 resources:
   - gitrepository.yaml
   - cluster-core.yaml
-  - env-dev.yaml
-  - env-staging.yaml
-  - env-prod.yaml
+  - ./env/dev/vcluster-kustomization.yaml
+  - ./env/dev/runtime.yaml
+  - ./env/staging/vcluster-kustomization.yaml
+  - ./env/staging/runtime.yaml
+  - ./env/prod/vcluster-kustomization.yaml
+  - ./env/prod/runtime.yaml
+
+  

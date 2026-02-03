@@ -1,43 +1,126 @@
-.PHONY: format format-check lint lint-yaml validate help
+# ------------------------------
+# Config
+# ------------------------------
+.DEFAULT_GOAL := help
+
+ROOT        := $(shell git rev-parse --show-toplevel)
+SCRIPTS_DIR := $(ROOT)/scripts
+OUT         ?= out
+SEARCH      ?= clusters
+
+VENV := $(ROOT)/.venv
+PY   := $(VENV)/bin/python3
+PIP  := $(PY) -m pip
+
+YAML_FILES := $(shell find $(ROOT) -type f \( -name "*.yaml" -o -name "*.yml" \))
+
+DAG_ARGS := --root "$(ROOT)" --search "$(SEARCH)" --out-dir "$(OUT)"
+
+.PHONY: help tools format format-check lint lint-yaml validate \
+        py-tools venv py-deps py-deps-dev \
+        build-dag build-dag-dot build-dag-png \
+        graphviz-tools clean
+
+# ------------------------------
+# Helpers
+# ------------------------------
+define require_tool
+	@command -v $(1) >/dev/null 2>&1 || { echo "❌ $(1) not installed"; exit 1; }
+endef
 
 help:
 	@echo "Targets:"
-	@echo "  make tools         Check required tools"
-	@echo "  make format        Auto-fix YAML style"
-	@echo "  make format-check  Check YAML style (CI)"
-	@echo "  make lint          Run YAML lint checks"
-	@echo "  make validate      Run all GitOps quick checks"
+	@echo "  make tools           Check required YAML tools"
+	@echo "  make format          Auto-fix YAML style"
+	@echo "  make format-check    Check YAML style (CI)"
+	@echo "  make lint            Run YAML lint checks"
+	@echo "  make build-dag       Generate DAG output"
+	@echo "  make build-dag-dot   Generate DOT output"
+	@echo "  make build-dag-png   Generate DOT + render PNG (Graphviz)"
+	@echo "  make validate        Run quick checks (format-check + lint + build-dag)"
+	@echo "  make clean           Remove local outputs/venv artifacts"
 
-ROOT := $(shell git rev-parse --show-toplevel)
-# -------- YAML FILE LIST --------
-YAML_FILES := $(shell find $(ROOT) -type f \( -name "*.yaml" -o -name "*.yml" \))
-
-# -------- TOOL CHECK --------
+# ------------------------------
+# YAML formatting / lint
+# ------------------------------
 tools:
-	@command -v yamlfmt >/dev/null 2>&1 || { echo "❌ yamlfmt not installed"; exit 1; }
-	@command -v yamllint >/dev/null 2>&1 || { echo "❌ yamllint not installed"; exit 1; }
-	@echo "✅ All required tools are installed."
-	
-# -------- FORMAT (auto-fix YAML style) --------
-format: tools
-	@echo "Applying Kubernetes YAML style with yamlfmt..."
-	yamlfmt -conf "$(ROOT)/.yamlfmt" $(YAML_FILES)
-	@echo "YAML formatting complete."
+	$(call require_tool,yamlfmt)
+	$(call require_tool,yamllint)
+	@echo "✅ YAML tools ok."
 
-# -------- FORMAT CHECK (CI mode) --------
+format: tools
+	@echo "Applying YAML style with yamlfmt..."
+	@yamlfmt -conf "$(ROOT)/.yamlfmt" $(YAML_FILES)
+	@echo "✅ YAML formatting complete."
+
 format-check: tools
 	@echo "Checking YAML formatting..."
-	yamlfmt -lint -conf "$(ROOT)/.yamlfmt" $(YAML_FILES)
-	@echo "Format check passed."
+	@yamlfmt -lint -conf "$(ROOT)/.yamlfmt" $(YAML_FILES)
+	@echo "✅ Format check passed."
 
-# -------- YAML LINT (syntax + structure) --------
 lint-yaml: tools
 	@echo "Running yamllint..."
-	yamllint -c "$(ROOT)/.yamllint" $(YAML_FILES)
-	@echo "YAML lint passed."
+	@yamllint -c "$(ROOT)/.yamllint" $(YAML_FILES)
+	@echo "✅ YAML lint passed."
 
-# -------- LINT (aggregate) --------
 lint: lint-yaml
 
-validate:
-	@bash scripts/verify.sh
+# ------------------------------
+# Python venv + deps (DAG generator)
+# ------------------------------
+py-tools:
+	$(call require_tool,python3)
+	@echo "✅ Found python3: $$(command -v python3)"
+
+venv: py-tools
+	@test -d "$(VENV)" || python3 -m venv "$(VENV)"
+	@$(PIP) install -U pip >/dev/null
+
+py-deps: venv
+	@echo "Installing deps from: $(SCRIPTS_DIR)/requirements.txt"
+	@$(PIP) install -r "$(SCRIPTS_DIR)/requirements.txt"
+
+py-deps-dev: venv
+	@echo "Installing dev-deps from: $(SCRIPTS_DIR)/requirements-dev.txt"
+	@$(PIP) install -r "$(SCRIPTS_DIR)/requirements-dev.txt"
+
+# ------------------------------
+# DAG generation
+# ------------------------------
+build-dag: py-deps
+	@echo "Generating DAG topologies..."
+	@$(PY) "$(SCRIPTS_DIR)/build-dag.py" $(DAG_ARGS)
+
+build-dag-dot: py-deps
+	@$(PY) "$(SCRIPTS_DIR)/build-dag.py" $(DAG_ARGS) --dot
+
+# ------------------------------
+# Graphviz (DOT -> PNG)
+# ------------------------------
+graphviz-tools:
+	$(call require_tool,dot)
+	@echo "✅ Found graphviz: $$(command -v dot)"
+
+build-dag-png: graphviz-tools build-dag-dot
+	@echo "Rendering PNG from DOT..."
+	@DOT_FILE="$$(ls -1 "$(OUT)"/*.dot 2>/dev/null | head -n 1)"; \
+	if [ -z "$$DOT_FILE" ]; then \
+	  echo "❌ No .dot file found in $(OUT). Did build-dag-dot generate it?"; \
+	  exit 1; \
+	fi; \
+	PNG_FILE="$${DOT_FILE%.dot}.png"; \
+	dot -Tpng "$$DOT_FILE" -o "$$PNG_FILE"; \
+	echo "✅ Wrote $$PNG_FILE"
+
+# ------------------------------
+# Aggregate checks
+# ------------------------------
+validate: format-check lint build-dag
+
+# ------------------------------
+# Cleanup
+# ------------------------------
+clean:
+	@rm -rf "$(OUT)"
+	@rm -rf "$(VENV)"
+	@echo "✅ Cleaned $(OUT) and $(VENV)"

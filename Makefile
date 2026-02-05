@@ -19,7 +19,7 @@ DAG_ARGS := --root "$(ROOT)" --search "$(SEARCH)" --out-dir "$(OUT)"
 .PHONY: help tools format format-check lint lint-yaml validate \
         py-tools venv py-deps py-deps-dev \
         build-dag build-dag-dot build-dag-png \
-        graphviz-tools clean
+        graphviz-tools validate-flux find-unreferenced flux-tools clean
 
 # ------------------------------
 # Helpers
@@ -37,7 +37,8 @@ help:
 	@echo "  make build-dag       Generate DAG output"
 	@echo "  make build-dag-dot   Generate DOT output"
 	@echo "  make build-dag-png   Generate DOT + render PNG (Graphviz)"
-	@echo "  make validate        Run quick checks (format-check + lint + build-dag)"
+	@echo "  make validate        Run checks (format-check + lint + build-dag + validate-flux)"
+	@echo "  make validate-flux   Flux build each topology node + kubeconform schema validation"
 	@echo "  make clean           Remove local outputs/venv artifacts"
 
 # ------------------------------
@@ -113,9 +114,40 @@ build-dag-png: graphviz-tools build-dag-dot
 	echo "✅ Wrote $$PNG_FILE"
 
 # ------------------------------
+# Flux + kubeconform validation tools
+# ------------------------------
+flux-tools:
+	$(call require_tool,flux)
+	$(call require_tool,kubeconform)
+	@echo "✅ Flux/kubeconform tools ok."
+
+
+# ------------------------------
 # Aggregate checks
 # ------------------------------
-validate: format-check lint build-dag
+PLAN               ?= $(OUT)/plan.json
+RENDERED_DIR       ?= $(OUT)/rendered
+VALIDATE_JOBS      ?= 3
+KUBECONFORM_K8SVER ?= master
+
+validate-flux: flux-tools build-dag
+	@echo "Validating Flux topologies (flux build + kubeconform)..."
+	@rm -rf "$(RENDERED_DIR)"
+	@$(PY) "$(SCRIPTS_DIR)/validate-flux-dag.py" \
+		--root "$(ROOT)" \
+		--plan "$(PLAN)" \
+		--artifacts-dir "$(RENDERED_DIR)" \
+		--jobs "$(VALIDATE_JOBS)" \
+		--ignore-missing-schemas \
+		--kubernetes-version "$(KUBECONFORM_K8SVER)" 
+
+find-unreferenced: validate-flux
+	@echo "Finding unreferenced yaml files..."
+	@$(PY) "$(SCRIPTS_DIR)/find_unreferenced_yaml.py" \
+		--root "$(ROOT)" \
+		--rendered-dir "$(RENDERED_DIR)"
+
+validate: format-check lint build-dag validate-flux
 
 # ------------------------------
 # Cleanup

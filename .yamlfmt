@@ -6,6 +6,7 @@ exclude:
   - "**/kustomization.yaml"
   - "**/values.yaml"
   - "out/**"
+  - "**/.github/**"
 
 formatter:
   type: basic

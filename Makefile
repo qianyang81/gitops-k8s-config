@@ -8,9 +8,9 @@ SCRIPTS_DIR := $(ROOT)/scripts
 OUT         ?= out
 SEARCH      ?= clusters
 
-VENV := $(ROOT)/.venv
-PY   := $(VENV)/bin/python3
-PIP  := $(PY) -m pip
+VENV_DIR ?= .venv
+PY := $(VENV_DIR)/bin/python3
+PIP := $(VENV_DIR)/bin/pip
 
 YAML_FILES := $(shell find $(ROOT) -type f \( -name "*.yaml" -o -name "*.yml" \))
 
@@ -39,7 +39,11 @@ help:
 	@echo "  make build-dag-png   Generate DOT + render PNG (Graphviz)"
 	@echo "  make validate        Run checks (format-check + lint + build-dag + validate-flux)"
 	@echo "  make validate-flux   Flux build each topology node + kubeconform schema validation"
+	@echo "  make find-repo-orphan  Find orphan YAML files in the repo (not referenced by any kustomize)"
 	@echo "  make clean           Remove local outputs/venv artifacts"
+	@echo "  make validate-env ENV=dev     Run checks for a single env (clusters/dev)"
+	@echo "  make validate-all-env         Run checks for all envs: $(ENVS)"
+
 
 # ------------------------------
 # YAML formatting / lint
@@ -121,14 +125,13 @@ flux-tools:
 	$(call require_tool,kubeconform)
 	@echo "✅ Flux/kubeconform tools ok."
 
-
 # ------------------------------
 # Aggregate checks
 # ------------------------------
 PLAN               ?= $(OUT)/plan.json
 RENDERED_DIR       ?= $(OUT)/rendered
 VALIDATE_JOBS      ?= 3
-KUBECONFORM_K8SVER ?= master
+KUBECONFORM_K8SVER ?= 1.35.0
 
 validate-flux: flux-tools build-dag
 	@echo "Validating Flux topologies (flux build + kubeconform)..."
@@ -150,10 +153,10 @@ find-repo-orphan:
 find-repo-orphan-ci:
 	@echo "Finding orphan yaml files in the repo..."
 	@$(PY) "$(SCRIPTS_DIR)/find-repo-orphan-kustomize.py" \
-		--mode warn \
-		--no-use-git
+		--mode fail
 
-validate: format-check lint validate-flux
+validate: format lint validate-flux find-repo-orphan
+validate-ci: format-check lint validate-flux find-repo-orphan-ci
 
 # ------------------------------
 # Cleanup
@@ -162,3 +165,19 @@ clean:
 	@rm -rf "$(OUT)"
 	@rm -rf "$(VENV)"
 	@echo "✅ Cleaned $(OUT) and $(VENV)"
+
+
+# ------------------------------
+# CI Docker
+# ------------------------------
+.PHONY: ci-docker
+ci-docker:
+	docker build -f Dockerfile.ci -t cluster-config-ci:local .
+	docker run --rm \
+	  -e VENV_DIR=/opt/venv \
+	  -v "$$(pwd):/work" -w /work \
+	  cluster-config-ci:local \
+	  bash -lc "make validate-ci"
+
+
+

@@ -1,0 +1,38 @@
+FROM python:3.12-slim
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# basic tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash ca-certificates curl git tar make \
+  && rm -rf /var/lib/apt/lists/*
+
+# install yamllint (python)
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir yamllint
+
+# install yamlfmt (static go build)
+RUN curl -sL https://go.dev/dl/go1.22.4.linux-amd64.tar.gz | tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:${PATH}"
+RUN GOBIN=/usr/local/bin go install github.com/google/yamlfmt/cmd/yamlfmt@latest \
+ && chmod +x /usr/local/bin/yamlfmt \
+ && yamlfmt --version || true
+
+# install flux (latest)
+RUN FLUX_VERSION="$(curl -s https://api.github.com/repos/fluxcd/flux2/releases/latest | python -c 'import sys,json; print(json.load(sys.stdin)["tag_name"].lstrip("v"))')" \
+ && curl -sL "https://github.com/fluxcd/flux2/releases/download/v${FLUX_VERSION}/flux_${FLUX_VERSION}_linux_amd64.tar.gz" \
+ | tar -xz -C /usr/local/bin flux \
+ && chmod +x /usr/local/bin/flux
+
+# install kubeconform (latest)
+RUN KUBECONFORM_VERSION="$(curl -s https://api.github.com/repos/yannh/kubeconform/releases/latest | python -c 'import sys,json; print(json.load(sys.stdin)["tag_name"].lstrip("v"))')" \
+ && curl -sL "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+ | tar -xz -C /usr/local/bin kubeconform \
+ && chmod +x /usr/local/bin/kubeconform
+
+ WORKDIR /work
+
+ RUN mkdir -p /opt/venv
+
+# default entry
+CMD ["bash", "-lc", "make validate-ci"]

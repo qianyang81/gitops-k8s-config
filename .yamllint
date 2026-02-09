@@ -10,3 +10,5 @@ ignore: |
   out/**
   ./out/**
   **/out/**
+  .github/**
+  **/.github/**

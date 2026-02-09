@@ -1,0 +1,24 @@
+name: cluster-config-validate
+
+on:
+  pull_request:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build CI image
+        run: docker build -f Dockerfile.ci -t cluster-config-ci:local .
+
+      - name: Run validation in container
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            -w /work \
+            cluster-config-ci:local \
+            bash -lc "make validate-ci"

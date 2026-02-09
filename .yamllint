@@ -7,3 +7,6 @@ ignore: |
   **/kustomization.yaml
   **/values.yaml
   .yamllint
+  out/**
+  ./out/**
+  **/out/**

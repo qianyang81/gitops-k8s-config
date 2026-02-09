@@ -5,6 +5,7 @@ doublestar: true
 exclude:
   - "**/kustomization.yaml"
   - "**/values.yaml"
+  - "out/**"
 
 formatter:
   type: basic

@@ -5,7 +5,7 @@ metadata:
   name: gitops-k8s-config
   namespace: flux-system
 spec:
-  interval: es
+  interval: 5s
   url: https://github.com/qianyang81/gitops-k8s-config.git
   ref:
     branch: main

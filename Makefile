@@ -19,7 +19,7 @@ DAG_ARGS := --root "$(ROOT)" --search "$(SEARCH)" --out-dir "$(OUT)"
 .PHONY: help tools format format-check lint lint-yaml validate \
         py-tools venv py-deps py-deps-dev \
         build-dag build-dag-dot build-dag-png \
-        graphviz-tools validate-flux find-unreferenced flux-tools clean
+        graphviz-tools validate-flux find-repo-orphan flux-tools clean
 
 # ------------------------------
 # Helpers
@@ -51,12 +51,12 @@ tools:
 
 format: tools
 	@echo "Applying YAML style with yamlfmt..."
-	@yamlfmt -conf "$(ROOT)/.yamlfmt" $(YAML_FILES)
+	@yamlfmt -conf "$(ROOT)/.yamlfmt"
 	@echo "✅ YAML formatting complete."
 
 format-check: tools
 	@echo "Checking YAML formatting..."
-	@yamlfmt -lint -conf "$(ROOT)/.yamlfmt" $(YAML_FILES)
+	@yamlfmt -lint -conf "$(ROOT)/.yamlfmt"
 	@echo "✅ Format check passed."
 
 lint-yaml: tools
@@ -141,13 +141,19 @@ validate-flux: flux-tools build-dag
 		--ignore-missing-schemas \
 		--kubernetes-version "$(KUBECONFORM_K8SVER)" 
 
-find-unreferenced: validate-flux
-	@echo "Finding unreferenced yaml files..."
-	@$(PY) "$(SCRIPTS_DIR)/find_unreferenced_yaml.py" \
-		--root "$(ROOT)" \
-		--rendered-dir "$(RENDERED_DIR)"
+find-repo-orphan:
+	@echo "Finding orphan yaml files in the repo..."
+	@$(PY) "$(SCRIPTS_DIR)/find-repo-orphan-kustomize.py" \
+		--mode warn \
+		--no-use-git
 
-validate: format-check lint build-dag validate-flux
+find-repo-orphan-ci:
+	@echo "Finding orphan yaml files in the repo..."
+	@$(PY) "$(SCRIPTS_DIR)/find-repo-orphan-kustomize.py" \
+		--mode warn \
+		--no-use-git
+
+validate: format-check lint validate-flux
 
 # ------------------------------
 # Cleanup
